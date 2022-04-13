@@ -27,9 +27,6 @@ y = int(bob.recvline().strip())
 bob.recvuntil(b"h = ")
 h = int(bob.recvline().strip())
 
-# get c by random(int(time.time()))
-random.randint(1, p-1)    # h
-
 # send z, a, b
 z = 1
 b = 1
