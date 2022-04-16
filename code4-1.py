@@ -15,13 +15,6 @@ from hw2.mix.cipher2 import StreamCipher, PublicKeyCipher, randbytes
 # print(pk)
 # print(sk)
 
-pk, sk = {}, {}
-pk[0], sk[0] = PublicKeyCipher.gen_key() # server0
-pk[1], sk[1] = PublicKeyCipher.gen_key() # server1
-pk[2], sk[2] = PublicKeyCipher.gen_key() # server2
-pk[3], sk[3] = PublicKeyCipher.gen_key() # Bob
-
-
 # get route
 # bob.recvuntil(b"The route of the packet should be ")
 # route = str(bob.recvline()[1:17])
@@ -32,12 +25,13 @@ pk[3], sk[3] = PublicKeyCipher.gen_key() # Bob
 # route = tmp
 # print("route: ", route)
 
-route = [1, 2, 1, 0, 1, 3]
+# route = [1, 2, 1, 0, 1, 3]
 
 # get packet
-message = b"Give me flag, now!"
-packet = Packet.create(message, 3, pk[3])
-print(packet.decrypt_client(sk[3]))
+
+
+# packet = Packet.create(message, 3, pk[3])
+# print(packet.decrypt_client(sk[3]))
 
 # for send_to in route[::-1][1:]:
 #     print("add to: ", send_to)
@@ -46,3 +40,19 @@ print(packet.decrypt_client(sk[3]))
 # send packet
 # bob.sendlineafter(b">", binascii.hexlify(packet.data))
 # bob.interactive()
+
+
+# #### UNIT TEST #### >> k should be Zn
+# pk, sk = {}, {}
+# pk[0], sk[0] = PublicKeyCipher.gen_key() # server0
+
+# message = b"Give me flag, now!"
+# k = randbytes(16)
+# k = int.from_bytes(k, "big") % pk[0][0]
+# c_m = StreamCipher.encrypt(k, message)
+# c_k = PublicKeyCipher.encrypt(pk[0], k)
+# print("k:", k)
+
+# k_ = PublicKeyCipher.decrypt(sk[0], c_k)
+# print("k_:", k_)
+# print(StreamCipher.decrypt(k_, c_m))
