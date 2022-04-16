@@ -1,4 +1,4 @@
-from cipher2 import StreamCipher, PublicKeyCipher, randbytes
+from hw2.mix.cipher2 import StreamCipher, PublicKeyCipher, randbytes
 
 
 def i2b(n): # int to bytes
@@ -17,12 +17,31 @@ class Packet:
     def create(message, send_to, pk):
         assert len(message) <= 40
         message = message.ljust(400, b'\x00')
-        data = message # TODO: create the correct data
+        
+        # encrypt data with one-time key
+        k = randbytes(32)
+        data = StreamCipher.encrypt(int.from_bytes(k, "big"), message[:-32])
+        
+        # encrypt one-time key with pk
+        k = PublicKeyCipher.encrypt(pk, int.from_bytes(k, "big"))
+        data = k + data
+
+        print("data: ", data)
+        print("len(data): ", len(data))
+        assert len(data) == 400
+            
         return Packet(data)
 
     def add_next_hop(self, target, pk):
         # TODO
-        pass
+        # encrypt data with one-time key
+        k = randbytes(32)
+        self.data = StreamCipher.encrypt(int.from_bytes(k, "big"), str(target).rjust(20, "0").encode() + self.data[:-52])
+        
+        # encrypt one-time key with pk
+        k = PublicKeyCipher.encrypt(pk, int.from_bytes(k, "big"))
+        self.data = k + self.data
+        assert len(self.data) == 400
 
     def decrypt_client(self, sk):
         assert len(self.data) == 400
