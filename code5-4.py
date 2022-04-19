@@ -4,7 +4,7 @@ import random, time
 bob = remote('cns.csie.org', 8016)
 
 # Bob: flag 2
-bob.sendlineafter(b"Your choice: ", str(4))
+bob.sendlineafter(b"Your choice: ", str(4).encode())
 
 # get p, g, y, h
 bob.recvuntil(b"p = ")
@@ -24,9 +24,9 @@ r = random.randint(1, p-2)
 z = pow(h, x, p)
 a = pow(g, r, p)
 b = pow(h, r, p)
-bob.sendlineafter(b"z = ", str(z))
-bob.sendlineafter(b"a = ", str(a))
-bob.sendlineafter(b"b = ", str(b))
+bob.sendlineafter(b"z = ", str(z).encode())
+bob.sendlineafter(b"a = ", str(a).encode())
+bob.sendlineafter(b"b = ", str(b).encode())
 
 # get c
 bob.recvuntil(b"c = ")
@@ -35,7 +35,7 @@ c = int(bob.recvline().strip())
 
 #
 w = c*x + r 
-bob.sendlineafter(b"w = ", str(w))
+bob.sendlineafter(b"w = ", str(w).encode())
 
 print(bob.recvline().strip().decode())
 
