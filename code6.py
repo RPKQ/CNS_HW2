@@ -1,5 +1,61 @@
 import hashlib, hmac
-from http import client
+from Crypto.Cipher import AES
+
+
+class Interpreter:
+
+    def __init__(self, nonce_client:bytes, nonce_server:bytes, enc_premaster_secret:bytes, d:int, n:int) -> None:
+        self.d = d
+        self.n = n
+        self.update(nonce_client, nonce_server, enc_premaster_secret)
+
+    # https://www.cryptologie.net/article/340/tls-pre-master-secrets-and-master-secrets/
+    @staticmethod
+    def PRF(secret: bytes, label: bytes, seed: bytes, required_len: int) -> bytes:
+        A = []
+        A.append(label + seed)
+        ret = bytes()
+        while 1 :
+            A_new = hmac.new(secret, A[len(A)-1], hashlib.sha256).digest()
+            A.append(A_new)
+            ret = ret + hmac.new(secret, A_new + A[0], hashlib.sha256).digest()
+            if len(ret) >= required_len:
+                break
+        return ret[:required_len]
+
+    def update(self, nonce_client:bytes, nonce_server:bytes, enc_premaster:bytes) -> None:
+
+        MAC_KEY_LEN = 20
+        WRITE_KEY_LEN = 32
+
+        premaster = pow(enc_premaster, self.d, self.n)
+        premaster = bytes.fromhex(str(hex(premaster))[-96:])
+
+        master_secret = self.PRF(premaster, b"master secret", nonce_client + nonce_server, 48)
+        # print("master secret: ", master_secret)
+
+        key_block = self.PRF(master_secret, b"key expansion", nonce_server + nonce_client, 2*MAC_KEY_LEN + 2*WRITE_KEY_LEN)
+        # print("key_block: ", key_block)
+
+        self.client_MAC_key = key_block[0:MAC_KEY_LEN]
+        self.server_MAC_key = key_block[MAC_KEY_LEN:2*MAC_KEY_LEN]
+        self.client_write_key = key_block[2*MAC_KEY_LEN:2*MAC_KEY_LEN + WRITE_KEY_LEN]
+        self.server_write_key = key_block[2*MAC_KEY_LEN + WRITE_KEY_LEN:2*MAC_KEY_LEN + 2*WRITE_KEY_LEN]
+        # print("client_write_key: ", client_write_key)
+    
+    def decrypt_server(self, enc_msg:bytes) -> bytes:
+        iv = enc_msg[:16]
+        enc_msg = enc_msg[16:]
+
+        cipher = AES.new(self.server_write_key, AES.MODE_CBC, iv=iv)
+        return cipher.decrypt(enc_msg)
+
+    def decrypt_client(self, enc_msg:bytes) -> bytes:
+        iv = enc_msg[:16]
+        enc_msg = enc_msg[16:]
+
+        cipher = AES.new(self.client_write_key, AES.MODE_CBC, iv=iv)
+        return cipher.decrypt(enc_msg)
 
 ### get private key ###
 
@@ -10,71 +66,27 @@ phi = (p-1)*(q-1)
 e = 65537
 d = pow(e, -1, phi)
 
-### get premaster secret ###
+nonce_client = bytes.fromhex("10e3537daf03fdcc3392361986937fb9306d5425b34a61acf70ecacaf05490c3")
+nonce_server = bytes.fromhex("e5624ac894c1133a675a7e57bb1dca798686034db8f8c28a444f574e47524401")
+enc_premaster = int(0x018f3485b6b31fc2953321f12f4bfeb172a7da2e3cdd4b7605b03ccf6c141dabc13449d2c16b4cebc1b779bf826184343ec3d4ac223c30cc9f2afb397d288abb7be4d27a15e447136c2766cf96b5a37c1463573576486bd2a6975e37483a1ea2df91a0fcc23efea159cc2df35c3e7c7d86db4db7a609f31c378e095955fc737e244161b546ab99319804473a1b46aab5517a6b84f0fe0849168c63397f6bfb84b8b742cbc4a842f578aa17ce2d3494873f2754872309d0dd1b0a6bca0bbe900a5d5643081b3db82884da8cee09a05f44672a7ebde4002be2ecb356f46c1fab2f7dd493d11d9741130e349a53d542189bdce66fd498efe45dcb8dd4f8bdc414d7e0e1ce086e6aa255416d7c264e1e58d08a6f7e8f29b35d61968c501b52c235a0fafade1502671488595307a3ca78af320cfeb53f7716b3157bc39ef3daaf2418a392c8e118f961320eab29bb47e301c08d86157db3216b64a9960fc417551858e9805676b61daadd6ba4dc73fba0758e45be21b1cd80c9c047517cf1f195c6228c7f68db775f599817c5d72052b57d0a8ab68d39a12a1ca2251fcc31ddda5286e453c91b7b21c17fc2e2fd87ebb16462bb080719fb92f53faa92bd3d4377044313b0ec1ede28260f000d9358f99bc6d6199c18cdfb21b26369dc304ebc0ebb7ec5f3ffa18a0542c3a9f8c0e1229af6d6eb0c957127fcde38f7dceea3422833eb)
 
-nonce_client_1 = bytes.fromhex("eff5ac9b1572abd0bad4eff7de901a609fd43e02029d6d082735910d9854e3a8")
-nonce_server_1 = bytes.fromhex("8d301e416ce0d0d669ea409c9be5e0ad83a8dad3516d536b444f574e47524401")
-encrypted_premaster = int(0x1535e8f420862286d0d61bcce92942706fc261fdcf5f66dfbd1cb4afb515bb93248112af5f65981119a49f1f42569a8fb96b3f4b842d99057d7a9722fc615992acd0c3fe42ca16ed19e08e67ff83b72b21a5fa58380cca9fc645d53f580ca0a88487955d8066f967065330c6398a1276d9e51f377dc30ab175d05710f668826f788f995b93534b1911082c5ed4016ce346b842a2c6876a97ef31993fc2ae1d16b4fe3429e1e3967198d4826b188fddbef26eb4a4ba123efe311501e1781062f3b81fbea2f2c6e7cba6163b8c88d6690a962ddb4c000824d8d7607ac4fe0e41f94cf3e8a4df47966f192142d9ef0e91b7bec7c3a641ddabe9916c08ccf434a9e13fc370332f6790af0adb930f9db09ba2c8dea4a6414a0a845377369d6adc93dcf03dd0551a5be7da23ac15e0c5c2d48ed465de663e52ad43580b45272b427e7ced55b39d1ee7d43a349e4fa22cddbb35c1dd48bf8df318af6f25470e4cbb78c7c85cfe863c95eb7b7ebd0ffd272c3d7b0ddcd98a1a74b168dceb61ae07e0ee60b964f1561a260945db00f7a559edb3050f7e6907abb34324d998c87a396757184be5264e8be46afa04665262bb111138c908cbe103274bfb33ab9a44d2360f313b76dbcda0bbda0084cdfe14bd741482e7eb3e2c50928044e0b14db7a6b5418dca0a5ac156c0779f8d06ce444dbd007f46214959f1ec19914a810e094c6a79a6)
-premaster = pow(encrypted_premaster, d, n)
-premaster = bytes.fromhex(str(hex(premaster))[-96:])
-print("premaster:", premaster)
+interpreter = Interpreter(nonce_client, nonce_server, enc_premaster, d, n)
 
-### derive master secrete from premaster secret ###
+# 0: server -> client
+# 1: client -> server
+msg = [(0, "76c2d9ac430ebc34390dce82af3b283aa8dcb7d9bbd9184c091a1d75270b97510ff40c9de42ac401ca576072ea2aeff70a2c3934a55796192584ecbab6f2f6bf"),
+        (0, "c1da0b2dd50d9e123c6a667c2cd244a64b11c2eaf3be29266a414636517e7f7d66e1aac568934f89b79e363a93a2e8d4a3fd25665364c22cebc32ac29c39674e"),
+        (0, "22e33283955ce7d594f3eadb35d9cff2876230ae04338ed1fdfac68aa5eda1df68f81e03b3d2580750cadadef993d463ddedd08a7ab720ecd879a72b25a97077"),
+        (0, "0172cf9cbd49611d07b1b18a432466e6a48c6ec20cf7eeec79ed3db45347d362265aef6ad63e6ffaa1d970a56558c5ab"),
+        (1, "5cf9d35b51ecbf2342637d295f6b1f707e2229c39d906e505640c09237981d471856349c44e60633f67f61e5a7dea994"),
+        (0, "f53a717db2d09b567c76b25baca3fe2b9040b61b000cd6f617853299ad247ac8f2f1f0100c3601a0bc73399b4735f1c3"),
+        (1, "a58a0740a2a5cac6a4c17d29ef6bd7297c20e435650092cb7e3b42618579a77d1864d8d7cfc123920e4055f3ed0d8ca00bb0ed06e631399fc1290b433692ba5f"),
+        (0, "fcda3e537597e4e034482fda53f238a3d0f6f04ed616a18b19c3f7ad518e97ad592e010f7a8427debfd0fd4ebb332712534e5e0fb56f5cee54e1043b7b982442"),
+        (1, "d14f5bf6f495c299a69832ccd7dc3b20431228ea0d21a98c715725874a2dc23a732e970f9597483c7b3ad75dcb6a14ec10868612515be20834c9e006d1833d36")]
 
-
-# https://www.cryptologie.net/article/340/tls-pre-master-secrets-and-master-secrets/
-def PRF(secret: bytes, label: bytes, seed: bytes, required_len: int):
-    A = []
-    A.append(label + seed)
-    ret = bytes()
-    while 1 :
-        A_new = hmac.new(secret, A[len(A)-1], hashlib.sha256).digest()
-        A.append(A_new)
-        ret = ret + hmac.new(secret, A_new + A[0], hashlib.sha256).digest()
-        if len(ret) >= required_len:
-            break
-    # print(A)
-    return ret[:required_len]
-
-
-master_secret = PRF(premaster, b"master secret", nonce_client_1 + nonce_server_1, 48)
-# print("master secret: ", master_secret)
-
-### derive key from master secret ###
-
-MAC_KEY_LEN = 20
-WRITE_KEY_LEN = 32
-# IV_KEY_LEN = 16
-
-key_block = PRF(master_secret, b"key expansion", nonce_server_1 + nonce_client_1, 2*MAC_KEY_LEN + 2*WRITE_KEY_LEN)
-print("key_block: ", key_block)
-
-client_MAC_key = key_block[0:MAC_KEY_LEN]
-server_MAC_key = key_block[MAC_KEY_LEN:2*MAC_KEY_LEN]
-client_write_key = key_block[2*MAC_KEY_LEN:2*MAC_KEY_LEN + WRITE_KEY_LEN]
-server_write_key = key_block[2*MAC_KEY_LEN + WRITE_KEY_LEN:2*MAC_KEY_LEN + 2*WRITE_KEY_LEN]
-# print("client_write_key: ", client_write_key)
-
-enc_client_msg = bytes.fromhex("90c5cecab966216e947d49fb5dec94368cd4d94559043136b82955e949a0483e259efed9f9ca50a005ae1c96c6637cd7")
-client_iv = enc_client_msg[:16]
-enc_client_msg = enc_client_msg[16:]
-print("client iv: ", client_iv)
-print("enc_client_msg: ", enc_client_msg)
-
-
-enc_server_msg = bytes.fromhex("7aabd5d4538727c03e998a493c67d1ff17668c45a03ef4ab091dc80265f30d6ef0f73ad1da9eb7709b2aafc1e40c0f20257aaf2d87261927e5c7609cb2ed4d0b")
-server_iv = enc_server_msg[:16]
-enc_server_msg = enc_server_msg[16:]
-print("server iv: ", server_iv)
-print("enc_server_msg: ", enc_server_msg)
-
-
-from Crypto.Cipher import AES
-
-cipher = AES.new(client_write_key, AES.MODE_CBC, iv=client_iv)
-client_msg = cipher.decrypt(enc_client_msg)
-print("client_msg: ", client_msg)
-
-cipher = AES.new(server_write_key, AES.MODE_CBC, iv=server_iv)
-server_msg = cipher.decrypt(enc_server_msg)
-print("server_msg: ", server_msg)
+for (f, m) in msg:
+    m = bytes.fromhex(m)
+    if f == 0:
+        print(interpreter.decrypt_server(m))
+    else:
+        print(interpreter.decrypt_client(m))
