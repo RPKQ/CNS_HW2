@@ -166,10 +166,10 @@ f.close()
 #       - copy the rootCA certificate to ssl/rootCA.crt
 
 ### ssl/domain.key ###
-# openssl genrsa -out domain.key 2048
+# openssl genrsa -out ssl/domain.key 2048
 
 ### ssl/domain.ext ###
-# should be the following content
+### should be the following content ###
 # authorityKeyIdentifier=keyid,issuer
 # basicConstraints=CA:FALSE
 # subjectAltName = @alt_names
@@ -177,9 +177,9 @@ f.close()
 # DNS.1 = domain
 
 ### ssl/domain.crt ###
-# openssl req -key domain.key -new -out domain.csr
+# openssl req -key ssl/domain.key -new -out ssl/domain.csr
 #   - Enter: TW, Taiwan, Taipei, NTU CNS, student, cns.csie.org, alice@csie.ntu.edu.tw
-# openssl x509 -req -CA rootCA.crt -CAkey rootCA.key -in domain.csr -out domain.crt -days 365 -CAcreateserial -extfile domain.ext
+# openssl x509 -req -CA ssl/rootCA.crt -CAkey ssl/rootCA.key -in ssl/domain.csr -out ssl/domain.crt -days 365 -CAcreateserial -extfile ssl/domain.ext
 
 #########################
 ### connect to server ###
@@ -206,5 +206,4 @@ print(sock.recv(1024)) # password
 sock.sendall(b"catsarecute\n")
 print(sock.recv(1024)) # Enter your command
 sock.sendall(b"Alohomora!\n")
-print(sock.recv(1024))
 print(sock.recv(1024))
