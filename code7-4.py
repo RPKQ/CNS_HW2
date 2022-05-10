@@ -1,3 +1,6 @@
+# https://www.rfc-editor.org/rfc/rfc8032#section-3.2
+# https://github.com/cmehay/pytor/blob/f4165e76c1418881ed16963bc6f7efe3e520e614/pytor/onion.py#L229
+
 import base64, hashlib
 import os
 import collections
@@ -81,27 +84,41 @@ class Ed25519:
 sk_prefix = b"== ed25519v1-secret: type0 ==\x00\x00\x00"
 pk_prefix = b"== ed25519v1-public: type0 ==\x00\x00\x00"
 
-seed = os.urandom(32)
-sk = hashlib.sha512(seed).digest()
-sk = bytearray(sk)
-# lowest three bits of the first octet are cleared
-sk[0] &= 248
-# the highest bit of the last octet is cleared
-sk[31] &= 63
-# the second highest bit of the last octet is set
-sk[31] |= 34
 
-ed = Ed25519()
-pk = ed.public_key_from_hash(sk)
-hostname = generate_hostname(pk)
-sk = sk_prefix + sk
-pk = pk_prefix + pk
+cnt = 0
+while 1:
+    seed = os.urandom(32)
+    sk = hashlib.sha512(seed).digest()
+    sk = bytearray(sk)
+    # lowest three bits of the first octet are cleared
+    sk[0] &= 248
+    # the highest bit of the last octet is cleared
+    sk[31] &= 63
+    # the second highest bit of the last octet is set
+    sk[31] |= 34
 
-# write files
-dir = "/var/lib/tor/hidden_service"
-filenames = ["hs_ed25519_public_key", "hs_ed25519_secret_key", "hostname"]
-data = [pk, sk, hostname]
-for filename, d in zip(filenames, data):
-    f = open(os.path.join(dir, filename), "wb")
-    f.write(d)
-    f.close()
+    ed = Ed25519()
+    pk = ed.public_key_from_hash(sk)
+    hostname = generate_hostname(pk)
+    sk = sk_prefix + sk
+    pk = pk_prefix + pk
+
+    # write files
+    dir = "./7-4"
+    filenames = ["hs_ed25519_public_key", "hs_ed25519_secret_key", "hostname"]
+    data = [pk, sk, hostname]
+    for filename, d in zip(filenames, data):
+        f = open(os.path.join(dir, filename), "wb")
+        f.write(d)
+        f.close()
+
+    # check
+    if hostname[0:5] == b"cnshw":
+        print(hostname)
+        print(pk)
+        print(sk)
+        break
+
+    if cnt%50 == 0:
+        print(f'{cnt}: {hostname}')
+    cnt += 1
