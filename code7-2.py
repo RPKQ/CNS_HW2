@@ -11,7 +11,7 @@
 
 ### GENERATE ADDRESS ###
 import base64, hashlib
-with open("hw2/tor/pubkey", "rb") as f:
+with open("tor/pubkey", "rb") as f:
     pk = f.read(100)[32:]
     H = hashlib.sha3_256()
     H.update(b".onion checksum"+ pk + b'\x03') 
